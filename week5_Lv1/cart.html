@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Document</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/css/bootstrap.min.css" rel="stylesheet"
+    integrity="sha384-F3w7mX95PdgyTmZZMECAngseQB83DfGTowi0iMjiWaeVhAn4FJkqJByhZMI3AhiU" crossorigin="anonymous" />
+</head>
+
+<body>
+  <div id="app">
+    <div class="container">
+      <div class="mt-4">
+        <!-- 記得掛上 product-modal元件 -->
+        <!-- 若要在外層使用此元件方法，記得加上ref對應值 -->
+        <!-- 注意 稍早的ref='modal'是設在 product-modal的樣板中，目的是抓該dom元素; 若要使用在product-modal的元件定義方法，則要記得在該元件標籤中加入ref屬性對應值 -->
+        <!-- 使用props將onpenProdctModal方法對應的id帶入(已賦值在根元件的資料productId上) 前內後外，記得要用v-bind-->
+        <!-- 注意，要記得使用html做為橋樑，作為emit丟出的id, 數量參數與根元件的方法addToCart做連結 -->
+        <product-modal :id="productId" ref="productModal" @add-cart="addToCart"></product-modal>
+        <!-- product-modal -->
+
+        <table class="table align-middle">
+          <thead>
+            <tr>
+              <th>圖片</th>
+              <th>商品名稱</th>
+              <th>價格</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- 使用v-for將產品渲染到畫面上 -->
+            <tr v-for="product in products" :key="product.id">
+              <td style="width: 200px">
+                <!-- 使用css背景圖，此方法為html的知識延伸 -->
+                <!-- 藉此可以在table內，將主圖呈現 -->
+                <!-- 由於在style後面插入的是物件形式，因此不建議使用dash，而是使用小駝峰的寫法 -->
+                <!-- 由於是物件型式，所以塞幾個都沒關係 -->
+                <div :style="{
+                      backgroundImage: `url(${product.imageUrl})`,
+                    }" style="
+                      height: 100px;
+                      background-size: cover;
+                      background-position: center;
+                    "></div>
+              </td>
+              <td>{{ product.title }}</td>
+              <td>
+                <!-- 使用v-if, v-else 區隔 原價與售價一樣，以及不一樣的寫法 -->
+                <div class="h5" v-if="product.price === product.origin_price">
+                  {{ product.price }} 元
+                </div>
+                <div v-else>
+                  <!-- del為 中間有橫線刪除線的文字標籤 -->
+                  <del class="h6">原價 {{ product.origin_price }} 元</del>
+                  <div class="h5">現在只要 {{ product.price }} 元</div>
+                </div>
+              </td>
+              <td>
+                <div class="btn-group btn-group-sm">
+                  <!-- 查看更多按鈕，對應api為 客戶購物-產品(products)中 GET product/{id}的api -->
+                  <button type="button" class="btn btn-outline-secondary" :disabled="isLoadingItem === product.id"
+                    @click="openProductModal(product.id)">
+                    查看更多
+                  </button>
+                  <!-- 加入購物車按鈕，方法addToCart(id)需帶入id -->
+                  <!-- 使用實心紅色說明:使用者體驗研究，畫面上只能有一個最重要的按鈕 -->
+                  <!-- (說明: 連點兩下，api設計會在數量上增加上去) -->
+                  <!-- 局部讀取效果加入 -->
+                  <!-- 1.不讓使用者做第二次點擊disabled (當被點擊觸發後導致 局部讀取屬性與id一致時觸發)，目的: 點擊後較有感因為有回饋 -->
+                  <!-- 2. 加入查看更多 -->
+                  <!-- 3. 加入bs的讀取效果 class="spinner-grow spinner-grow-sm" -->
+                  <!-- 4. 加入v-show條件 -->
+                  <!-- 5. 也可以將局部讀取加入滑鼠箭頭 -->
+                  <!-- 6. 加入局部讀取效果目的: 避免用戶連點，造成伺服器loading重 -->
+                  <button type="button" class="btn btn-danger" @click="addToCart(product.id)"
+                    :disabled="isLoadingItem === product.id">
+                    <span class="spinner-grow spinner-grow-sm" v-show="isLoadingItem === product.id"></span>
+                    加到購物車
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <!-- 購物車列表 -->
+        <!-- 做購物車的技巧: 由於是先 加入購物車 購物車內才有會有內容 ，可用{{cartData}}來作為反饋確認 -->
+        <!-- 清空購物車按鈕 -->
+        <div class="text-end">
+          <button class="btn btn-outline-danger" type="button">
+            清空購物車
+          </button>
+        </div>
+        <!-- 以上是清空購物車按鈕 -->
+        <!-- 下方為驗證程式碼資料，方便使用，用後須刪除 -->
+        <div>
+          {{cartData}}
+        </div>
+        <table class="table align-middle">
+          <thead>
+            <tr>
+              <th></th>
+              <th>預覽圖</th>
+              <th>品名</th>
+              <th style="width: 150px">數量/單位</th>
+              <th class="text-end">單價/總價</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- 購物車資料有沒有存在 -->
+            <template v-if="cartData.carts">
+              <!-- 使用v-for將購物車中的產品列表列出 -->
+              <!-- 注意:產品資訊是包在carts陣列內部物件的product屬性中 -->
+              <tr v-for="item in cartData.carts" :key="item.id">
+                <td>
+                  <!-- 刪除品項 -->
+                  <!-- 注意: 刪除要刪除到資料庫 -->
+                  <!-- 對應remobdeCartItem方法 -->
+                  <!-- 加入loading效果 -->
+                  <button type="button" class="btn btn-outline-danger btn-sm" @click="removeCartItem(item.id)"
+                    :disabled="isLoadingItem === item.id">
+                    <span class="spinner-grow spinner-grow-sm" v-show="isLoadingItem === item.id"></span>
+                    x
+                  </button>
+                </td>
+                <td>
+                  <div :style="{backgroundImage: `url(${item.product.imageUrl})`,}" style="
+                height: 100px;
+                background-size: cover;
+                background-position: center;
+              "></div>
+                </td>
+                <td class="fw-bolder text-decoration-underline">
+                  {{ item.product.title }}
+                  <!-- <div class="text-success">已套用優惠券</div> -->
+                </td>
+                <td>
+                  <!-- 使用BS的input-group 將其群組化 -->
+                  <div class="input-group input-group-sm">
+                    <div class="input-group mb-3">
+                      <!-- 數量 -->
+                      <!-- 注意: 要確保存數字，input標籤部分 要加type="number" -->
+                      <!-- 問題:會有bug比如可以填入負值、英文數字e...等 -->
+                      <!-- <input min="1" type="number" class="form-control"
+                          v-model="item.qty"/> -->
+                      <!-- 加入BS的樣式 class="form-select"下拉數字選單 -->
+                      <!-- v-modal綁定物品數量 -->
+                      <!-- 使用change方法，若數量改變，立即觸發updateCartItem方法，立即將修改對應數量 進行資料庫api回傳 -->
+                      <select id="" class="form-select" v-model="item.qty" @change="updateCartItem(item)"
+                        :disabled="isLoadingItem === item.id">
+                        <!-- 數量，使用option 以這種方法可多出1~20的選項 -->
+                        <!-- 注意v-for用法:使用選項數字就會自動增減1 -->
+                        <!-- 注意，數量要存到資料庫 -->
+                        <!-- 注意: 這邊的value對應的num是透過v-bind變成根元件的資料屬性變數 -->
+                        <option :value="num" v-for="num in 20" :key="`${num}-${item.id}`">{{ num }}
+                        </option>
+                      </select>
+                      <!-- 單位 -->
+                      <span class="input-group-text" id="basic-addon2">{{ item.product.unit }}</span>
+                    </div>
+                  </div>
+                </td>
+                <td class="text-end">
+                  <span class="spinner-grow spinner-grow-sm" v-show="isLoadingItem === item.id"></span>
+                  <span class="text-secondary fz-sm">單價 {{item.product.price}}元 /</span><span class="fw-bolder"> 總價{{
+                    item.total }}元
+                  </span>
+                </td>
+              </tr>
+            </template>
+          </tbody>
+          <tfoot>
+            <tr>
+              <td></td>
+              <td colspan="3" class="text-end">總計</td>
+              <td class="text-end">{{ cartData.total }}元</td>
+            </tr>
+            <!-- <tr>
+              <td></td>
+              <td colspan="3" class="text-end text-success">折扣價</td>
+              <td class="text-end text-success">{{ }}</td>
+            </tr> -->
+          </tfoot>
+        </table>
+      </div>
+      <!-- 訂單資訊填寫 -->
+      <!-- 要加入表單驗證VeeValidate -->
+      <div class="my-5 row justify-content-center">
+        <v-form ref="form" class="col-md-6" v-slot="{ errors }" @submit="onSubmit">
+          <div class="mb-3">
+            <label for="email" class="form-label">Email</label>
+            <v-field id="email" name="email" type="email" class="form-control"
+              :class="{ 'is-invalid': errors['email'] }" placeholder="請輸入 Email" rules="email|required"></v-field>
+            <error-message name="email" class="invalid-feedback"></error-message>
+          </div>
+
+          <div class="mb-3">
+            <label for="name" class="form-label">收件人姓名</label>
+            <v-field id="name" name="姓名" type="text" class="form-control" :class="{ 'is-invalid': errors['姓名'] }"
+              placeholder="請輸入姓名" rules="required" :rules="noEmpty"></v-field>
+            <error-message name="姓名" class="invalid-feedback"></error-message>
+          </div>
+
+          <div class="mb-3">
+            <label for="tel" class="form-label">收件人電話</label>
+            <v-field id="tel" name="電話" type="text" class="form-control" :class="{ 'is-invalid': errors['電話'] }"
+              placeholder="請輸入電話" rules="required" :rules="isPhone|noEmpty"></v-field>
+            <error-message name="電話" class="invalid-feedback"></error-message>
+          </div>
+
+          <div class="mb-3">
+            <label for="address" class="form-label">收件人地址</label>
+            <v-field id="address" name="地址" type="text" class="form-control" :class="{ 'is-invalid': errors['地址'] }"
+              placeholder="請輸入地址" rules="required" :rules="noEmpty"></v-field>
+            <error-message name="地址" class="invalid-feedback"></error-message>
+          </div>
+
+          <div class="mb-3">
+            <label for="message" class="form-label">留言</label>
+            <textarea id="message" class="form-control" cols="30" rows="10"></textarea>
+          </div>
+          <div class="text-end">
+            <button type="submit" class="btn btn-danger"
+              :disabled="Object.keys(errors).length > 0 || cartData.carts.length === 0">送出訂單</button>
+          </div>
+        </v-form>
+      </div>
+    </div>
+  </div>
+  <!-- product-modal對應的template內容 id=userProductModal -->
+  <!-- 要使用ref，一定要記得在其對應的樣板值標籤屬性內加入 ref="自訂名" -->
+  <script type="text/x-template" id="userProductModal">
+      <div
+        class="modal fade"
+        id="productModal"
+        tabindex="-1"
+        role="dialog"
+        aria-labelledby="exampleModalLabel"
+        aria-hidden="true"
+        ref="modal"
+      >
+        <div class="modal-dialog modal-xl" role="document">
+          <div class="modal-content border-0">
+            <div class="modal-header bg-dark text-white">
+              <h5 class="modal-title" id="exampleModalLabel">
+                <span>{{ product.title }}</span>
+              </h5>
+              <button
+                type="button"
+                class="btn-close"
+                data-bs-dismiss="modal"
+                aria-label="Close"
+              ></button>
+            </div>
+            <div class="modal-body">
+              <div class="row">
+                <div class="col-sm-6">
+                  <img class="img-fluid" :src="product.imageUrl" alt="" />
+                </div>
+                <div class="col-sm-6">
+                  <span class="badge bg-primary rounded-pill"> </span>
+                  <p>商品描述：</p>
+                  <p>商品內容：</p>
+                  <div class="h5">元</div>
+                  <del class="h6">原價 元</del>
+                  <div class="h5">現在只要 元</div>
+                  <div>
+                    <div class="input-group">
+                      <!-- 數量用v-modal綁定 product-modal元件資料屬性 -->
+                      <!-- 注意: 有設定最小值屬性 min -->
+                      <!-- 但是是input標籤，所以會有bug如可以輸入負數、寫e -->
+                      <!-- 建議用select -->
+                      <input type="number" class="form-control"
+                      min="1"
+                      v-model="qty" />
+                      <!-- 加入購物車功能按鈕 -->
+                      <button type="button" class="btn btn-primary"
+                      @click="addToCart">
+                        加入購物車
+                      </button>
+                    </div>
+                  </div>
+                  <button class="btn btn-secondary " @click='closeModal'>關閉視窗</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </script>
+
+  <!-- axios -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.9.1/axios.min.js"
+    integrity="sha512-Xk3wWei2TGrsh9kDSBKUMIjw/86sLUvhtnv9f7fOuIwhhiUTKz8szkWkzHthrM5Bb3Bu9idSzkxOrkzhcneuiw=="
+    crossorigin="anonymous"></script>
+  <!-- popper -->
+  <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.1/dist/umd/popper.min.js"
+    integrity="sha384-SR1sx49pcuLnqZUnnPwx6FCym0wLsk5JZuNx2bPPENzswTNFaQU1RDvt3wT4gWFG"
+    crossorigin="anonymous"></script>
+  <!-- BS5 -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/js/bootstrap.bundle.min.js"
+    integrity="sha384-/bQdsTh/da6pkI1MST/rWKFNjaCP5gBSY4sEBT38Q/9RBh9AH40zEOg7Hlq2THRZ"
+    crossorigin="anonymous"></script>
+  <!-- vue -->
+  <script src="https://unpkg.com/vue@3"></script>
+  <!--VeeValidate主套件-->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/vee-validate/4.5.8/vee-validate.min.js"></script>
+  <!--VeeValidateRules 套件 -->
+  <script src="https://cdn.jsdelivr.net/npm/@vee-validate/rules@4.5.8/dist/vee-validate-rules.min.js"></script>
+  <!--VeeValidateI18n多國語言套件-->
+  <script src="https://cdn.jsdelivr.net/npm/@vee-validate/i18n@4.5.8/dist/vee-validate-i18n.min.js"></script>
+
+
+  <!-- VeeValidate主套件 -->
+  <!-- <script src="https://unpkg.com/vee-validate@next"></script> -->
+  <!--VeeValidateRules 套件 -->
+  <!-- <script src="https://unpkg.com/@vee-validate/i18n@4.1.0"></script> -->
+  <!--VeeValidateI18n多國語言套件-->
+  <!-- <script src="https://unpkg.com/@vee-validate/rules"></script> -->
+  <!-- cart.js -->
+  <script src="./cart.js" type="module"></script>
+
+</body>
+
+</html>
