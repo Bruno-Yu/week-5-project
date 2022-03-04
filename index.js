@@ -14,7 +14,6 @@ const {
 } = VeeValidateRules;
 // 引入多國函式的網址
 const { localize, loadLocaleFromURL } = VeeValidateI18n;// 物件多國語言
-console.log(VeeValidateRules);
 defineRule('required', required);
 defineRule('email', email);
 defineRule('min', min);// 限制8碼
@@ -57,7 +56,6 @@ const app = Vue.createApp({
       // 注意: 取得產品使用 客戶購物-產品(Products)的API
       // 使用.all的api，等等不會做分頁
       axios.get(`${apiUrl}/api/${apiPath}/products/all`).then((res) => {
-        console.log(res);
         this.products = res.data.products;
       });
     },
@@ -75,7 +73,6 @@ const app = Vue.createApp({
     // 取得購物車內的資料
     getCart() {
       axios.get(`${apiUrl}/api/${apiPath}/cart`).then((res) => {
-        console.log(res);
         // 將購物車資料賦值至根元件資料中
         // 購物車api回傳的response物件中有兩層data，2層data後的carts陣列，是為已加入購物車的品項內容(array)
         // carts內品項的 價格有分 total:加入優惠券前 final_total:優惠券打折後最終結帳的價格
@@ -96,8 +93,7 @@ const app = Vue.createApp({
       // 局部讀取效果賦值對應id
       this.isLoadingItem = id;
       // axios.post 加入購物車列表
-      axios.post(`${apiUrl}/api/${apiPath}/cart`, { data }).then((res) => {
-        console.log(res);
+      axios.post(`${apiUrl}/api/${apiPath}/cart`, { data }).then(() => {
         // 重新取得購物車內容
         this.getCart();
         // 將跳出的product-modal元件視窗 在修改完購物車數量後關閉
@@ -134,8 +130,7 @@ const app = Vue.createApp({
         qty: item.qty,
       };
       this.isLoadingItem = item.id;
-      axios.put(`${apiUrl}/api/${apiPath}/cart/${item.id}`, { data }).then((res) => {
-        console.log(res);
+      axios.put(`${apiUrl}/api/${apiPath}/cart/${item.id}`, { data }).then(() => {
         // 取得購物車的資料
         this.getCart();
         this.isLoadingItem = '';
