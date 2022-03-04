@@ -40,6 +40,16 @@ const app = Vue.createApp({
       productId: '',
       // 局部讀取效果對應變數
       isLoadingItem: '',
+      form: {
+        user: {
+          name: '',
+          email: '',
+          tel: '',
+          address: '',
+        },
+        message: '',
+      },
+      cart: {},
     };
   },
   methods: {
@@ -57,6 +67,8 @@ const app = Vue.createApp({
     openProductModal(id) {
       this.productId = id;
       // 使用$refs調用productModal元件的 openModal()方法
+      this.$refs.productModal.id=id;
+      this.$refs.productModal.getProduct();
       this.$refs.productModal.openModal();
     },
     // 對應api 客戶購物-購物車(cart)api get方法
@@ -94,13 +106,21 @@ const app = Vue.createApp({
         this.isLoadingItem = '';
       });
     },
+    removeCartAll(){
+      this.isLoadingItem='deleteAll'
+      axios.delete(`${apiUrl}/api/${apiPath}/carts`).then(() => {
+        // 取得購物車的資料
+        this.getCart();
+        this.isLoadingItem = '';
+      });
+
+    },
     // 對應購物車產品列表的 刪除品項 按鈕
     removeCartItem(id) {
       // 記得要帶入對應的item.id
       this.isLoadingItem = id;
       // 注意: 對應的api是購物車的api
-      axios.delete(`${apiUrl}/api/${apiPath}/cart/${id}`).then((res) => {
-        console.log(res);
+      axios.delete(`${apiUrl}/api/${apiPath}/cart/${id}`).then(() => {
         // 取得購物車的資料
         this.getCart();
         this.isLoadingItem = '';
@@ -110,7 +130,7 @@ const app = Vue.createApp({
     // 記得直接帶入對應品項
     updateCartItem(item) {
       const data = {
-        product_id: item.id,
+        product_id: item.product.id,
         qty: item.qty,
       };
       this.isLoadingItem = item.id;
@@ -123,20 +143,28 @@ const app = Vue.createApp({
     },
     // 驗證 表單觸發方法
     onSubmit() {
-      this.$refs.form.resetForm();
+
+      const url = `${apiUrl}/api/${apiPath}/order`;
+      const order = this.form;
+      axios.post(url, { data: order }).then((response) => {
+        alert(response.data.message);
+        this.$refs.form.resetForm();
+        this.getCart();
+      }).catch((err) => {
+        alert(err.data.message);
+      });
     },
     // 不得為空
     noEmpty(value) {
       if (!value) {
         return '此欄不得為空';
-      }
-      return '驗證成功';
+      };
     },
     isPhone(value) {
       const phoneNumber = /^(09)[0-9]{8}$/;
       return phoneNumber.test(value) ? true : '需要正確的電話號碼';
     },
-  },
+    },
   mounted() {
     // 在生命週期處，先將產品拉下來裝在產品列表內
     this.getProducts();
@@ -151,23 +179,24 @@ const app = Vue.createApp({
 app.component('product-modal', {
   // 使用props將openProductModal對應的id帶入，記得使用html做為橋樑，前內後外
   // 記住: props傳入的資料是會即時更新的(若對應的資料改變，傳入的資料也會立即改變)
-  props: ['id'],
+  // props: ['id'],
   template: '#userProductModal',
   data() {
     return {
       modal: {},
+      id:null,
       product: {},
       // 購物車的項目至少要有1個，所以需要填1作為預設值
       qty: 1,
     };
   },
-  watch: {
-    // 當id有變動時，就觸發在元件內的getProdct()
-    // 因為id是根元件openProductModal方法傳入的，有變動代表使用者點擊的對象不同
-    id() {
-      this.getProduct();
-    },
-  },
+  // watch: {
+  //   // 當id有變動時，就觸發在元件內的getProdct()
+  //   // 因為id是根元件openProductModal方法傳入的，有變動代表使用者點擊的對象不同
+  //   id() {
+  //     this.getProduct();
+  //   },
+  // },
   methods: {
     // 先將modal相關方法放在這邊，之後可以使用this.$refs在其他元件使用
     // 開啟modal方法
@@ -176,7 +205,10 @@ app.component('product-modal', {
     },
     // 關閉modal方法
     closeModal() {
+      this.product={};
       this.modal.hide();
+      // 清空後關閉
+
     },
     // 元件內利用props進來的id(openProductModal方法賦值的id)來取得遠端對應資料
     getProduct() {
