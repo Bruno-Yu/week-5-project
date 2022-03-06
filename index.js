@@ -151,9 +151,7 @@ const app = Vue.createApp({
     },
     // 不得為空
     noEmpty(value) {
-      if (!value) {
-        return '此欄不得為空';
-      };
+        return value ? true : "此欄不得為空";
     },
     isPhone(value) {
       const phoneNumber = /^(09)[0-9]{8}$/;
